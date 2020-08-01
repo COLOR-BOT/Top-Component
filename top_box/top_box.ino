@@ -1,193 +1,221 @@
+// #include <MultiStepper.hz
+
+#include <AccelStepper.h>
 #include <SoftwareSerial.h>
 
-// Include the AccelStepper library:
-#include <AccelStepper.h>
+SoftwareSerial BTserial(4, 5); // Arduino(RX, TX) - HC-05 Bluetooth (TX, RX)
 
-SoftwareSerial BTserial(4, 5); // RX | TX
+// CYAN
+#define dirPin0 10
+#define stepPin0 11
 
+// MAGENTA
+#define dirPin1 2
+#define stepPin1 3
 
-// Define stepper motor connections and motor interface type. Motor interface type must be set to 1 when using a driver:
-#define dirPin0 8
-#define stepPin0 9
+// YELLOW
+#define dirPin2 6
+#define stepPin2 7
 
-#define dirPin1 6
-#define stepPin1 7
+// KEY
+#define dirPin3 8
+#define stepPin3 9
 
-#define dirPin2 2
-#define stepPin2 3
+// STEPPER MOTORS (Type:driver, STEP, DIR)
+AccelStepper cyanMotor(1, stepPin0, dirPin0);       // Stepper1   (C)
+AccelStepper magentaMotor(1, stepPin1, dirPin1);    // Stepper2   (M)
+AccelStepper yellowMotor(1, stepPin2, dirPin2);     // Stepper3   (Y)
+AccelStepper keyMotor(1, stepPin3, dirPin3);        // Stepper4   (K)
 
-#define dirPin3 10
-#define stepPin3 11
+int dataIn = 0, motorSpeed = 1500, maxMotorSpeed = 3000;
+const int STEPS_PER_REV = 200;
 
-#define motorInterfaceType 1
-
-int prevState = -1;
-int pressCan = -1;
-int c = -1;
-
-// Create 4 new instances of the AccelStepper class:
-AccelStepper cyanMotor = AccelStepper(motorInterfaceType, stepPin0, dirPin0);
-AccelStepper magentaMotor = AccelStepper(motorInterfaceType, stepPin1, dirPin1);
-AccelStepper yellowMotor = AccelStepper(motorInterfaceType, stepPin2, dirPin2);
-AccelStepper keyMotor = AccelStepper(motorInterfaceType, stepPin3, dirPin3);
+boolean pressCan = false;
+boolean cyanState = false, 
+        magentaState = false, 
+        yellowState = false,
+        keyState = false;
 
 void setup() {
-  
-  // start the serial communication with the host computer
-  Serial.begin(9600);
-  Serial.println("Arduino with HC-05 is ready");
+  // start th serial communication with the host computer
+  Serial.begin(9600);         // Default baud rate of Serial Terminal (for debugging purposes) 
+  while (!Serial) Serial.print("Serial NOT initialized\n");
+                              // wait for serial port to connect. Needed for native USB port only
+  Serial.println("Arduino Serial initialized at 9600");
 
-  // start communication with the HC-05 using 9600 BR
-  BTserial.begin(9600);  
-  Serial.println("BTserial started at 9600");
+  // start communication with the HC-05 using 9600
+  BTserial.begin(9600);       // Default baud rate of Bluetooth module
+  while (!BTserial) Serial.print("BT 1 NOT initialized\n");
+  Serial.print("BTserial initialized at 9600\n");
   
   // Set the maximum speed in steps per second:
-  cyanMotor.setMaxSpeed(500);
-  magentaMotor.setMaxSpeed(500);
-  yellowMotor.setMaxSpeed(500);
-  keyMotor.setMaxSpeed(500);
+  cyanMotor.setMaxSpeed(maxMotorSpeed);
+  magentaMotor.setMaxSpeed(maxMotorSpeed);
+  yellowMotor.setMaxSpeed(maxMotorSpeed);
+  keyMotor.setMaxSpeed(maxMotorSpeed);
+
+  // Set speed in steps per second
+  cyanMotor.setSpeed(motorSpeed);
+  magentaMotor.setSpeed(motorSpeed);
+  yellowMotor.setSpeed(motorSpeed);
+  keyMotor.setSpeed(motorSpeed);
+  
+  Serial.print("motor speed: ");
+  Serial.print(motorSpeed);
+  Serial.print(" | max motor speed: ");
+  Serial.print(maxMotorSpeed);
+  Serial.print("\n");
 }
 
 void loop() {
+    dataIn = BTserial.read();
 
-  //Checks if the BT is available to be read/write
-  if (BTserial.available())
-    {   
-        //Captures value from Mega and stores in c
-        c = BTserial.read();
-        Serial.write(c);
-
-        //Based on value of 'c' targets specific motor
-        //Values 1-4 presses a specific motor, O stops the last active motor
-      switch(c){
-  
-       case 1: 
-       if(prevState != c){
-          prevState = c;
-          pressCan = 1;
-          CyanMotor();
-       };
-       
-       case 2:
-       if(prevState != c){
-        pressCan = 1;
-        prevState = c;
-        MagentaMotor();
-       };
-       
-       case 3:
-       if(prevState != c){
-        pressCan = 1;
-        prevState = c;
-        YellowMotor();
-       };
-       
-       case 4:
-       if(prevState != c){
-        pressCan = 1;
-        prevState = c;
-        KeyMotor();
-       };
-       
-       case 0:
-        pressCan = 1;
-        
-        if(prevState != c){
-          
-           if(prevState== 1){
-            CyanMotor();
-           }
-           if(prevState == 2){
-            MagentaMotor();
-           }
-           if(prevState == 3){
-            YellowMotor();
-           }
-           if(prevState == 4){
-            KeyMotor();
-           }
-            prevState = c;
-          
-        };
-       
-       default:
-       Serial.write("Oops something went wrong within the switch case!");
-       break;
-       
-     }
+    if (dataIn == 0) {
+      Serial.println("dataIn: ");
+      Serial.println(dataIn);
+      Serial.println("\n");
+      pressCan = false;
+      stopMotors();
     }
-
-    //If bluetooth not available print error message
-  else{
-    Serial.write("Sorry, bluetooth not connected");
-  }
     
+    if (dataIn == 1) {
+      pressCan = true;
+      Serial.println("dataIn: ");
+      Serial.println(dataIn);
+      Serial.println("\n");
+      runCyanMotor();
+    }
+    if (dataIn == 2) {
+      pressCan = true;
+      Serial.println("dataIn: ");
+      Serial.println(dataIn);
+      Serial.println("\n");
+      runMagentaMotor();
+    }
+    if (dataIn == 3) {        
+      pressCan = true;
+      Serial.println("dataIn: ");
+      Serial.println(dataIn);
+      Serial.println("\n");
+      runYellowMotor();
+    }
+    if (dataIn == 4) {
+      pressCan = true;
+      Serial.println("dataIn: ");
+      Serial.println(dataIn);
+      Serial.println("\n");
+      runKeyMotor();
+    }
 }
 
-//Presses the Cyan motor if press can = 1 
-//Maintains press state until a zero is passed into the 'Switch Case' within main loop
-void CyanMotor(){
+void runCyanMotor(){
+  if(pressCan == true) {
+    
+      for(int i = 0; i < STEPS_PER_REV; i++){
+        digitalWrite(stepPin0,HIGH); 
+        delayMicroseconds(500); 
+        digitalWrite(stepPin0,LOW); 
+        delayMicroseconds(500);
+      }
+      cyanState = true;
+      Serial.print("CYAN - active\n");
+    
+    pressCan = false;
+  } 
+}
   
-  if(pressCan = 1){
-    cyanMotor.setCurrentPosition(0);
-  
-    while(cyanMotor.currentPosition() != -1000)
-    {
-      cyanMotor.setSpeed(-600);
-      cyanMotor.runSpeed();
-    }
-    pressCan*=-1;
+void runMagentaMotor() {
+  if(pressCan == true) {
+      for(int i = 0; i < STEPS_PER_REV/2 * 2; i++){
+        digitalWrite(stepPin1,HIGH); 
+        delayMicroseconds(500); 
+        digitalWrite(stepPin1,LOW); 
+        delayMicroseconds(500);
+      }
+      magentaState = true;
+      Serial.print("MAGENTA - active\n");
+   
+    pressCan = false;
   }
-  
 }
 
-//Presses the Magenta motor if press can = 1 
-//Maintains press state until a zero is passed into the 'Switch Case' within main loop
-void MagentaMotor(){
-  
-  if(pressCan = 1){
-    magentaMotor.setCurrentPosition(0);
-  
-    while(magentaMotor.currentPosition() != -1000)
-    {
-      magentaMotor.setSpeed(-600);
-      magentaMotor.runSpeed();
-    }
-      pressCan*=-1;
+void runYellowMotor(){
+  if(pressCan == true){
+      for(int i = 0; i < STEPS_PER_REV; i++){
+        digitalWrite(stepPin2,HIGH); 
+        delayMicroseconds(500); 
+        digitalWrite(stepPin2,LOW); 
+        delayMicroseconds(500);
+      }
+      yellowState = true;
+      Serial.print("YELLOW - active\n");
+    
+    pressCan = false;
   }
-  
 }
 
-//Presses the Yellow motor if press can = 1 
-//Maintains press state until a zero is passed into the 'Switch Case' within main loop
-void YellowMotor(){
-  
-  if(pressCan = 1){
-    yellowMotor.setCurrentPosition(0);
-  
-    while(yellowMotor.currentPosition() != -1000)
-    {
-      yellowMotor.setSpeed(-600);
-      yellowMotor.runSpeed();
-    }
-        pressCan*=-1;
-  }
-  
+void runKeyMotor(){
+  if(pressCan == true) {
+      for(int i = 0; i < STEPS_PER_REV * 2; i++){
+        digitalWrite(stepPin3,HIGH); 
+        delayMicroseconds(500); 
+        digitalWrite(stepPin3,LOW); 
+        delayMicroseconds(500);
+      }
+      keyState = true;
+      Serial.print("KEY - active\n");
+    
+    pressCan = false;
+  } 
 }
 
-//Presses the Key motor if press can = 1 
-//Maintains press state until a zero is passed into the 'Switch Case' within main loop
-void KeyMotor(){
-  
-  if(pressCan = 1){
-    keyMotor.setCurrentPosition(0);
-  
-    while(keyMotor.currentPosition() != -1000)
-    {
-      keyMotor.setSpeed(-600);
-      keyMotor.runSpeed();
+// If motors are down, they will be returned to initial position
+void stopMotors() {
+  if (cyanState == true) {
+    pressCan = true;
+    for(int i = 0; i < STEPS_PER_REV * 7; i++){
+      digitalWrite(stepPin0,HIGH); 
+      delayMicroseconds(500); 
+      digitalWrite(stepPin0,LOW); 
+      delayMicroseconds(500);
     }
-        pressCan*=-1;
+    cyanState = false;
+    Serial.print("CYAN - INACTIVE\n");
   }
   
+  if (magentaState == true) {
+    pressCan = true;
+    for(int i = 0; i < STEPS_PER_REV * 7; i++){
+      digitalWrite(stepPin1,HIGH); 
+      delayMicroseconds(500); 
+      digitalWrite(stepPin1,LOW); 
+      delayMicroseconds(500);
+    }
+    magentaState = false;
+    Serial.print("MAGENTA - INACTIVE\n");
+  }
+  
+  if (yellowState == true) {
+    pressCan = true;
+    for(int i = 0; i < STEPS_PER_REV * 7; i++){
+      digitalWrite(stepPin2,HIGH); 
+      delayMicroseconds(500); 
+      digitalWrite(stepPin2,LOW); 
+      delayMicroseconds(500);
+    }
+    yellowState = false;
+    Serial.print("YELLOW - INACTIVE\n");
+  }
+  
+  if (keyState == true) {
+    pressCan = true;
+    for(int i = 0; i < STEPS_PER_REV * 3.5; i++){
+      digitalWrite(stepPin3,HIGH); 
+      delayMicroseconds(500); 
+      digitalWrite(stepPin3,LOW); 
+      delayMicroseconds(500);
+    }
+    keyState = false;
+    Serial.print("KEY - INACTIVE\n");
+  }
 }
